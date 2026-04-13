@@ -1,0 +1,376 @@
+PANDUAN PEMULIHAN LOGIC WEB INVENTARIS
+
+File ini berisi penjelasan alur kerja aplikasi, fungsinya, serta backup lengkap kode logic (Controllers) yang dihapus sehingga web kamu saat ini hanya menampilkan UI/Tampilannya saja.
+
+============================================================
+1. ALUR DAN CARA KERJA APLIKASI
+============================================================
+
+Sistem Inventaris ini memiliki 4 Controller utama:
+
+A. CategoryController (Manajemen Kategori):
+   - Alur: Mengelola jenis/kategori barang (misalnya alat tulis, perabotan) serta menentukan divisi penanggung jawab (Sarpras, Tata Usaha, TEFA).
+   - Cara Kerja: Memiliki fungsi CRUD (Create, Read, Update, Delete) yang hanya bisa diakses oleh admin. Data di-query menggunakan Eloquent dengan relasi ke model Item (`Category::with('items')->get()`) untuk menghitung total barang per kategori.
+
+B. ItemController (Manajemen Barang):
+   - Alur: Mengelola daftar inventaris barang berdasarkan kategorinya.
+   - Cara Kerja: Hanya admin yang bisa membuat, mengubah, dan menghapus barang. Staff dan admin bisa melihat daftar barang. Menyimpan total barang dan menyimpan history data barang yang sedang dipinjam atau diperbaiki, yang dimodifikasi secara dinamis jika ada transaksi dari LendingController.
+
+C. LendingController (Manajemen Peminjaman):
+   - Alur: Menangani fitur staff untuk meminjam barang dan mengembalikan barang. 
+   - Cara Kerja: 
+     - Saat dipinjam: Mengurangi ketersediaan barang (`total - diperbaiki - peminjaman`) dan menambah nilai 'peminjaman' pada model Item, serta mencatat history peminjaman dengan status 'belum' (dikembalikan).
+     - Saat dikembalikan: Mengubah status di tabel lending menjadi 'sudah', dan mengurangi nilai 'peminjaman' pada model Item, sehingga ketersediaan barang otomatis bertambah.
+
+D. UserController (Manajemen Pengguna):
+   - Alur: Memungkinkan admin mengelola user (Admin / Staff).
+   - Cara Kerja: Menambah user tanpa form password manual. Password di-generate secara otomatis menggunakan formula "4 huruf pertama email + ID user" (misal: admi1). Terdapat fungsi reset password dengan formula tersebut sehingga lebih aman dan terstruktur.
+
+============================================================
+2. CARA MENGEMBALIKAN APLIKASI SEPERTI SEMULA
+============================================================
+
+Untuk mengembalikan aplikasi agar dapat berjalan normal seperti semula (terkoneksi database dan dapat mengelola data), kamu cukup me-replace/mengganti semua kode di dalam file Controllers kamu (berada di folder `app/Http/Controllers/`) dengan kode-kode di bawah ini:
+
+
+============================================================
+FILE: app/Http/Controllers/CategoryController.php
+============================================================
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\Category;
+use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
+
+class CategoryController extends Controller
+{
+    public function index(Request $request)
+    {
+        if ($request->user()->role !== 'admin') abort(403);
+
+        $categories = Category::with('items')->get();
+        return view('categories.index', compact('categories'));
+    }
+
+    public function store(Request $request)
+    {
+        if ($request->user()->role !== 'admin') abort(403);
+
+        $request->validate([
+            'nama_kategori' => 'required|string|max:255',
+            'divisi_pj' => ['required', Rule::in(['sarpras', 'tata usaha', 'tefa'])],
+        ]);
+
+        Category::create([
+            'nama_kategori' => $request->nama_kategori,
+            'divisi_pj' => $request->divisi_pj,
+        ]);
+
+        return redirect()->route('categories.index')->with('success', 'Kategori berhasil ditambahkan!');
+    }
+
+    public function edit(Request $request, Category $category)
+    {
+        if ($request->user()->role !== 'admin') abort(403);
+        return view('categories.edit', compact('category'));
+    }
+
+    public function update(Request $request, Category $category)
+    {
+        if ($request->user()->role !== 'admin') abort(403);
+
+        $request->validate([
+            'nama_kategori' => 'required|string|max:255',
+            'divisi_pj' => ['required', Rule::in(['sarpras', 'tata usaha', 'tefa'])],
+        ]);
+
+        $category->update([
+            'nama_kategori' => $request->nama_kategori,
+            'divisi_pj' => $request->divisi_pj,
+        ]);
+
+        return redirect()->route('categories.index')->with('success', 'Kategori berhasil diperbarui!');
+    }
+
+    public function destroy(Request $request, Category $category)
+    {
+        if ($request->user()->role !== 'admin') abort(403);
+        $category->delete();
+        return redirect()->route('categories.index')->with('success', 'Kategori berhasil dihapus!');
+    }
+}
+
+
+============================================================
+FILE: app/Http/Controllers/ItemController.php
+============================================================
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\Item;
+use App\Models\Category;
+use Illuminate\Http\Request;
+
+class ItemController extends Controller
+{
+    public function index(Request $request)
+    {
+        if ($request->user()->role !== 'admin' && $request->user()->role !== 'staff') abort(403);
+
+        $items = Item::with(['category', 'lendings'])->get();
+        $categories = Category::all();
+        return view('items.index', compact('items', 'categories'));
+    }
+
+    public function showLendings(Request $request, Item $item)
+    {
+        if ($request->user()->role !== 'admin') abort(403);
+
+        $lendings = $item->lendings()->with('user')->latest()->get();
+        return view('items.lendings', compact('item', 'lendings'));
+    }
+
+    public function store(Request $request)
+    {
+        if ($request->user()->role !== 'admin') abort(403);
+
+        $request->validate([
+            'nama' => 'required|string|max:255',
+            'category_id' => 'required|exists:categories,id',
+            'total' => 'required|integer|min:0',
+        ]);
+
+        Item::create([
+            'nama' => $request->nama,
+            'category_id' => $request->category_id,
+            'total' => $request->total,
+            'diperbaiki' => 0,
+            'peminjaman' => 0,
+        ]);
+
+        return redirect()->route('items.index')->with('success', 'Item berhasil ditambahkan!');
+    }
+
+    public function edit(Request $request, Item $item)
+    {
+        if ($request->user()->role !== 'admin') abort(403);
+        
+        $categories = Category::all();
+        return view('items.edit', compact('item', 'categories'));
+    }
+
+    public function update(Request $request, Item $item)
+    {
+        if ($request->user()->role !== 'admin') abort(403);
+
+        $request->validate([
+            'nama' => 'required|string|max:255',
+            'category_id' => 'required|exists:categories,id',
+            'total' => 'required|integer|min:0',
+            'baru_rusak' => 'nullable|integer|min:0',
+        ]);
+
+        $item->nama = $request->nama;
+        $item->category_id = $request->category_id;
+        $item->total = $request->total;
+        
+        if ($request->filled('baru_rusak')) $item->diperbaiki += $request->baru_rusak;
+
+        $item->save();
+
+        return redirect()->route('items.index')->with('success', 'Item berhasil diperbarui!');
+    }
+
+    public function destroy(Request $request, Item $item)
+    {
+        if ($request->user()->role !== 'admin') abort(403);
+        $item->delete();
+        return redirect()->route('items.index')->with('success', 'Item berhasil dihapus!');
+    }
+}
+
+
+============================================================
+FILE: app/Http/Controllers/LendingController.php
+============================================================
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\Lending;
+use App\Models\Item;
+use Illuminate\Http\Request;
+
+class LendingController extends Controller
+{
+    public function index(Request $request)
+    {
+        if ($request->user()->role !== 'staff') abort(403);
+
+        $lendings = Lending::with(['item', 'user'])->latest()->get();
+        $items = Item::all();
+        
+        return view('lendings.index', compact('lendings', 'items'));
+    }
+
+    public function store(Request $request)
+    {
+        if ($request->user()->role !== 'staff') abort(403);
+
+        $request->validate([
+            'nama_peminjam' => 'required|string|max:255',
+            'keterangan' => 'nullable|string',
+            'items' => 'required|array|min:1',
+            'items.*.item_id' => 'required|exists:items,id',
+            'items.*.total' => 'required|integer|min:1',
+        ], [
+            'items.required' => 'Pilih minimal 1 item untuk dipinjam!',
+            'nama_peminjam.required' => 'Nama peminjam harus diisi!',
+        ]);
+
+        foreach ($request->items as $borrow) {
+            $item = Item::findOrFail($borrow['item_id']);
+            $tersedia = $item->total - $item->diperbaiki - $item->peminjaman;
+            if ($borrow['total'] > $tersedia) {
+                return redirect()->back()->withInput()->with('error', 'Total peminjaman untuk ' . $item->nama . ' melebihi stok tersedia (' . $tersedia . ')!');
+            }
+        }
+
+        foreach ($request->items as $borrow) {
+            $item = Item::find($borrow['item_id']);
+            
+            Lending::create([
+                'nama_peminjam' => $request->nama_peminjam,
+                'item_id' => $borrow['item_id'],
+                'total' => $borrow['total'],
+                'keterangan' => $request->keterangan,
+                'tanggal_pinjam' => now()->toDateString(),
+                'status' => 'belum',
+                'user_id' => $request->user()->id,
+            ]);
+
+            $item->peminjaman += $borrow['total'];
+            $item->save();
+        }
+
+        return redirect()->route('lendings.index')->with('success', 'Peminjaman berhasil ditambahkan!');
+    }
+
+    public function returnItem(Request $request, Lending $lending)
+    {
+        if ($request->user()->role !== 'staff') abort(403);
+
+        if ($lending->status === 'belum') {
+            $lending->status = 'sudah';
+            $lending->tanggal_kembali = now()->toDateString();
+            $lending->save();
+
+            $item = $lending->item;
+            if ($item) {
+                $item->peminjaman -= $lending->total;
+                if ($item->peminjaman < 0) $item->peminjaman = 0;
+                $item->save();
+            }
+        }
+
+        return redirect()->back()->with('success', 'Peminjaman berhasil dikembalikan!');
+    }
+
+    public function destroy(Request $request, Lending $lending)
+    {
+        if ($request->user()->role !== 'staff') abort(403);
+
+        if ($lending->status === 'belum') {
+            $item = $lending->item;
+            if ($item) {
+                $item->peminjaman -= $lending->total;
+                if ($item->peminjaman < 0) $item->peminjaman = 0;
+                $item->save();
+            }
+        }
+
+        $lending->delete();
+
+        return redirect()->back()->with('success', 'Data peminjaman berhasil dihapus!');
+    }
+}
+
+
+============================================================
+FILE: app/Http/Controllers/UserController.php
+============================================================
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\User;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
+
+class UserController extends Controller
+{
+    public function index(Request $request)
+    {
+        if ($request->user()->role !== 'admin') abort(403, 'Unauthorized action.');
+
+        $users = User::all();
+        return view('users.index', compact('users'));
+    }
+
+    public function store(Request $request)
+    {
+        if ($request->user()->role !== 'admin') abort(403);
+
+        $request->validate([
+            'name' => 'required|string|max:255',
+            'email' => 'required|string|email|max:255|unique:users',
+            'role' => ['required', Rule::in(['admin', 'staff'])],
+        ]);
+
+        $user = User::create([
+            'name' => $request->name,
+            'email' => $request->email,
+            'role' => $request->role,
+            'password' => Hash::make(Str::random(10)),
+        ]);
+
+        $prefix = substr($user->email, 0, 4);
+        $generatedPassword = $prefix . $user->id;
+
+        $user->password = Hash::make($generatedPassword);
+        $user->save();
+
+        return redirect()->route('users.index')->with('success', "Akun berhasil dibuat! Password akun ini adalah: {$generatedPassword}");
+    }
+
+    public function resetPassword(Request $request, User $user)
+    {
+        if ($request->user()->role !== 'admin') abort(403);
+
+        $prefix = substr($user->email, 0, 4);
+        $generatedPassword = $prefix . $user->id;
+
+        $user->password = Hash::make($generatedPassword);
+        $user->save();
+
+        return redirect()->route('users.index')->with('success', "Password untuk {$user->name} berhasil direset menjadi: {$generatedPassword}");
+    }
+
+    public function destroy(Request $request, User $user)
+    {
+        if ($request->user()->role !== 'admin') abort(403);
+
+        if ($request->user()->id === $user->id) {
+            return redirect()->route('users.index')->with('error', 'Tidak bisa menghapus akun Anda sendiri.');
+        }
+
+        $user->delete();
+
+        return redirect()->route('users.index')->with('success', 'Akun berhasil dihapus.');
+    }
+}
