@@ -23,7 +23,9 @@ Route::middleware('auth')->group(function () {
 
     Route::resource('/categories', \App\Http\Controllers\CategoryController::class);
     Route::get('/items/{item}/lendings', [\App\Http\Controllers\ItemController::class, 'showLendings'])->name('items.lendings');
-   
+    Route::resource('/items', \App\Http\Controllers\ItemController::class);
+    Route::post('/lendings/{lending}/return', [\App\Http\Controllers\LendingController::class, 'returnItem'])->name('lendings.return');
+    Route::resource('/lendings', \App\Http\Controllers\LendingController::class)->except(['create', 'show', 'edit', 'update']);
 });
 
 require __DIR__.'/auth.php';
