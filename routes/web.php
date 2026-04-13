@@ -22,9 +22,11 @@ Route::middleware('auth')->group(function () {
     Route::delete('/users/{user}', [\App\Http\Controllers\UserController::class, 'destroy'])->name('users.destroy');
 
     Route::resource('/categories', \App\Http\Controllers\CategoryController::class);
+    Route::get('/items/export', [\App\Http\Controllers\ItemController::class, 'export'])->name('items.export');
     Route::get('/items/{item}/lendings', [\App\Http\Controllers\ItemController::class, 'showLendings'])->name('items.lendings');
     Route::resource('/items', \App\Http\Controllers\ItemController::class);
     Route::post('/lendings/{lending}/return', [\App\Http\Controllers\LendingController::class, 'returnItem'])->name('lendings.return');
+    Route::get('/lendings/export', [\App\Http\Controllers\LendingController::class, 'export'])->name('lendings.export');
     Route::resource('/lendings', \App\Http\Controllers\LendingController::class)->except(['create', 'show', 'edit', 'update']);
 });
 

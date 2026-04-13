@@ -110,4 +110,60 @@ class LendingController extends Controller
 
         return redirect()->back()->with('success', 'Data peminjaman berhasil dihapus!');
     }
+
+    public function export(Request $request)
+    {
+        if ($request->user()->role !== 'staff') {
+            abort(403);
+        }
+
+        $lendings = Lending::with(['item', 'user'])->latest()->get();
+        $filename = 'lendings_export_' . now()->format('Ymd') . '.xls';
+        $headers = [
+            'Content-Type' => 'application/vnd.ms-excel; charset=UTF-8',
+            'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+            'Pragma' => 'no-cache',
+            'Expires' => '0',
+        ];
+
+        $callback = function () use ($lendings) {
+            echo '<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/></head><body>';
+            echo '<table border="1" cellpadding="5" cellspacing="0">';
+            echo '<tr>';
+            echo '<th>#</th>';
+            echo '<th>Item</th>';
+            echo '<th>Total</th>';
+            echo '<th>Nama Peminjam</th>';
+            echo '<th>Tanggal Pinjam</th>';
+            echo '<th>Tanggal Kembali</th>';
+            echo '<th>Status</th>';
+            echo '<th>Edit Oleh</th>';
+            echo '</tr>';
+
+            foreach ($lendings as $index => $lending) {
+                $itemName = $lending->item->nama ?? '-';
+                $total = $lending->total > 0 ? $lending->total : '-';
+                $borrower = $lending->nama_peminjam ?: '-';
+                $tanggalPinjam = $lending->tanggal_pinjam ? $lending->tanggal_pinjam : '-';
+                $tanggalKembali = $lending->tanggal_kembali ? $lending->tanggal_kembali : '-';
+                $status = $lending->status ?: '-';
+                $userName = $lending->user->name ?? '-';
+
+                echo '<tr>';
+                echo '<td>' . ($index + 1) . '</td>';
+                echo '<td>' . htmlspecialchars($itemName, ENT_QUOTES, 'UTF-8') . '</td>';
+                echo '<td>' . htmlspecialchars($total, ENT_QUOTES, 'UTF-8') . '</td>';
+                echo '<td>' . htmlspecialchars($borrower, ENT_QUOTES, 'UTF-8') . '</td>';
+                echo '<td>' . htmlspecialchars($tanggalPinjam, ENT_QUOTES, 'UTF-8') . '</td>';
+                echo '<td>' . htmlspecialchars($tanggalKembali, ENT_QUOTES, 'UTF-8') . '</td>';
+                echo '<td>' . htmlspecialchars($status, ENT_QUOTES, 'UTF-8') . '</td>';
+                echo '<td>' . htmlspecialchars($userName, ENT_QUOTES, 'UTF-8') . '</td>';
+                echo '</tr>';
+            }
+
+            echo '</table></body></html>';
+        };
+
+        return response()->stream($callback, 200, $headers);
+    }
 }

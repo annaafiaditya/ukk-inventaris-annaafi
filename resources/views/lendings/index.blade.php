@@ -82,6 +82,11 @@
                     Daftar Peminjaman
                 </div>
                 <div class="p-6 overflow-x-auto">
+                    <div class="mb-4 flex justify-end">
+                        <a href="{{ route('lendings.export') }}" class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700">
+                            Export Excel
+                        </a>
+                    </div>
                     <table class="w-full text-left table-auto min-w-max">
                         <thead>
                             <tr>

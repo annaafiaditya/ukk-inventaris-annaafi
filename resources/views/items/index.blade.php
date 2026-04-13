@@ -21,27 +21,27 @@
                     Tambah Item Baru
                 </div>
                 <div class="p-6">
-                    <form method="POST" action="{{ route('items.store') }}">
+                    <form method="POST" action="{{ route('items.store') }}" novalidate>
                         @csrf
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                             <div>
                                 <x-input-label for="nama" value="Nama Item" />
-                                <x-text-input id="nama" class="block mt-1 w-full" type="text" name="nama" :value="old('nama')" required autofocus oninvalid="this.setCustomValidity('Bidang ini harus diisi')" oninput="this.setCustomValidity('')" />
+                                <x-text-input id="nama" class="block mt-1 w-full" type="text" name="nama" :value="old('nama')" required autofocus />
                                 <x-input-error :messages="$errors->get('nama')" class="mt-2" />
                             </div>
                             <div>
                                 <x-input-label for="category_id" value="Kategori" />
-                                <select id="category_id" name="category_id" class="block mt-1 w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm" required oninvalid="this.setCustomValidity('Pilih salah satu kategori')" oninput="this.setCustomValidity('')">
-                                    <option value="" disabled selected>Pilih Kategori</option>
+                                <select id="category_id" name="category_id" class="block mt-1 w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm" required>
+                                    <option value="" disabled {{ old('category_id') ? '' : 'selected' }}>Pilih Kategori</option>
                                     @foreach($categories as $category)
-                                    <option value="{{ $category->id }}">{{ $category->nama_kategori }}</option>
+                                    <option value="{{ $category->id }}" {{ old('category_id') == $category->id ? 'selected' : '' }}>{{ $category->nama_kategori }}</option>
                                     @endforeach
                                 </select>
                                 <x-input-error :messages="$errors->get('category_id')" class="mt-2" />
                             </div>
                             <div>
                                 <x-input-label for="total" value="Total Items" />
-                                <x-text-input id="total" class="block mt-1 w-full" type="number" name="total" :value="old('total', 0)" min="0" required oninvalid="this.setCustomValidity('Bidang ini harus diisi')" oninput="this.setCustomValidity('')" />
+                                <x-text-input id="total" class="block mt-1 w-full" type="number" name="total" :value="old('total', 0)" min="0" required />
                                 <x-input-error :messages="$errors->get('total')" class="mt-2" />
                             </div>
                         </div>
@@ -60,6 +60,13 @@
                     Daftar Items
                 </div>
                 <div class="p-6 overflow-x-auto">
+                    @if(Auth::user()->role === 'admin')
+                    <div class="mb-4 flex justify-end">
+                        <a href="{{ route('items.export') }}" class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700">
+                            Export Excel
+                        </a>
+                    </div>
+                    @endif
                     <table class="w-full text-left table-auto min-w-max">
                         <thead>
                             <tr>
@@ -94,13 +101,16 @@
                                 <td class="p-4 border-b border-blue-gray-50 text-center font-bold text-green-600">
                                     {{ $item->total - $item->diperbaiki - $item->peminjaman }}
                                 </td>
+                                @php
+                                    $activeBorrowed = $item->lendings->where('status', 'belum')->sum('total');
+                                @endphp
                                 <td class="p-4 border-b border-blue-gray-50 text-center font-bold text-blue-600">
-                                    @if(Auth::user()->role === 'admin' && $item->lendings->count() > 0)
+                                    @if(Auth::user()->role === 'admin' && $activeBorrowed > 0)
                                         <a href="{{ route('items.lendings', $item) }}" class="underline hover:text-blue-800" title="Lihat Detail Peminjaman">
-                                            {{ $item->lendings->count() }}
+                                            {{ $activeBorrowed }}
                                         </a>
                                     @else
-                                        {{ $item->lendings->count() }}
+                                        {{ $activeBorrowed }}
                                     @endif
                                 </td>
                                 @if(Auth::user()->role === 'admin')

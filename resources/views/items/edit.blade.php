@@ -13,7 +13,7 @@
                     <a href="{{ route('items.index') }}" class="text-sm font-normal text-blue-600 hover:text-blue-800">&larr; Kembali ke Daftar</a>
                 </div>
                 <div class="p-6">
-                    <form method="POST" action="{{ route('items.update', $item) }}">
+                    <form method="POST" action="{{ route('items.update', $item) }}" novalidate>
                         @csrf
                         @method('PUT')
                         <div class="space-y-6 max-w-2xl">
