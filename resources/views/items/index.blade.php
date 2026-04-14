@@ -75,6 +75,7 @@
                                 <th class="p-4 border-b border-blue-gray-100 bg-blue-gray-50">Nama Item</th>
                                 <th class="p-4 border-b border-blue-gray-100 bg-blue-gray-50 text-center">Total</th>
                                 <th class="p-4 border-b border-blue-gray-100 bg-blue-gray-50 text-center">Diperbaiki</th>
+                                <th class="p-4 border-b border-blue-gray-100 bg-blue-gray-50 text-center">Hilang</th>
                                 <th class="p-4 border-b border-blue-gray-100 bg-blue-gray-50 text-center">Tersedia</th>
                                 <th class="p-4 border-b border-blue-gray-100 bg-blue-gray-50 text-center">Total Peminjaman</th>
                                 @if(Auth::user()->role === 'admin')
@@ -97,6 +98,9 @@
                                 </td>
                                 <td class="p-4 border-b border-blue-gray-50 text-center font-bold text-orange-600">
                                     {{ $item->diperbaiki }}
+                                </td>
+                                <td class="p-4 border-b border-blue-gray-50 text-center font-bold text-red-600">
+                                    {{ $item->hilang ?? 0 }}
                                 </td>
                                 <td class="p-4 border-b border-blue-gray-50 text-center font-bold text-green-600">
                                     {{ $item->total - $item->diperbaiki - $item->peminjaman }}
@@ -126,7 +130,7 @@
                             </tr>
                             @empty
                             <tr>
-                                <td colspan="{{ Auth::user()->role === 'admin' ? 8 : 7 }}" class="p-4 text-center text-gray-500">Belum ada data item.</td>
+                                <td colspan="{{ Auth::user()->role === 'admin' ? 9 : 8 }}" class="p-4 text-center text-gray-500">Belum ada data item.</td>
                             </tr>
                             @endforelse
                         </tbody>

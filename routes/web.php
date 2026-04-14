@@ -1,6 +1,9 @@
 <?php
 
 use App\Http\Controllers\ProfileController;
+use App\Models\Category;
+use App\Models\Item;
+use App\Models\Lending;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -8,7 +11,14 @@ Route::get('/', function () {
 });
 
 Route::get('/dashboard', function () {
-    return view('dashboard');
+    return view('dashboard', [
+        'totalItems' => Item::sum('total'),
+        'totalCategories' => Category::count(),
+        'totalLendings' => Lending::count(),
+        'activeLendings' => Lending::where('status', 'belum')->count(),
+        'totalRepair' => Item::sum('diperbaiki'),
+        'totalLost' => Lending::sum('hilang'),
+    ]);
 })->middleware(['auth', 'verified'])->name('dashboard');
 
 Route::middleware('auth')->group(function () {

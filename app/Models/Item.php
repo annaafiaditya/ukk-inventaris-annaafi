@@ -15,6 +15,7 @@ class Item extends Model
         'total',
         'diperbaiki',
         'peminjaman',
+        'hilang',
     ];
 
     public function category()
